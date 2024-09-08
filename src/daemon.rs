@@ -274,6 +274,15 @@ async fn daemon_poke(
     };
 
     let headers = request.headers().clone();
+    let urgent = headers
+        .get("x-priority")
+        .and_then(|priority_header| {
+            priority_header
+                .to_str()
+                .ok()
+                .map(|header_str| header_str.to_lowercase() == "urgent")
+        })
+        .unwrap_or(false);
 
     // If it's a GET request, we'll serve a WebUI
     if request.method() == hyper::Method::GET {
@@ -380,7 +389,11 @@ async fn daemon_poke(
     // The request body will be the message
     // Transform the body into a string
     let body_bytes = request.collect().await?.to_bytes();
-    let message = String::from_utf8(body_bytes.to_vec()).unwrap();
+    let mut message = String::from_utf8(body_bytes.to_vec()).unwrap();
+    if urgent {
+        // Ping everyone in the room for urgent messages
+        message.push_str(" @room");
+    }
     error!("Room: {:?}, Message: {:?}", room_id, message);
 
     // Get a copy of the bot
